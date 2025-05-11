@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { db } from "../../firebase/config";
+import { db } from '../firebase/config';
 import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore";
 import Link from 'next/link';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
