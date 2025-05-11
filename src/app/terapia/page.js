@@ -11,13 +11,12 @@ import '@fortawesome/fontawesome-svg-core/styles.css';
 import { config } from '@fortawesome/fontawesome-svg-core';
 import CircularTimer from './CircularTimer'; // Importa el componente
 import MPU6050Monitor from './MPU6050Monitor'; // Importa el nuevo componente
+import dynamic from 'next/dynamic';
 
 // Evitar el prefijo de Font Awesome
 config.autoAddCss = false;
 
-
-
-export default function Terapia() {
+const TerapiaCliente = () => {
   const searchParams = useSearchParams();
   const pacienteId = searchParams.get("pacienteId");
   const router = useRouter();
@@ -25,11 +24,11 @@ export default function Terapia() {
   const [pacienteNombre, setPacienteNombre] = useState("");
   const [terapias, setTerapias] = useState([]);
   const [terapiaSeleccionadaId, setTerapiaSeleccionadaId] = useState("");
+  const [terapiaSeleccionada, setTerapiaSeleccionada] = useState(null);
   const [pasos, setPasos] = useState([]);
   const [pasoActualIndice, setPasoActualIndice] = useState(0);
   const [anguloRegistrado, setAnguloRegistrado] = useState("");
   const [registrosSesion, setRegistrosSesion] = useState([]);
-  const [terapiaNombreSeleccionada, setTerapiaNombreSeleccionada] = useState("");
   const [finalizarTerapiaVisible, setFinalizarTerapiaVisible] = useState(false);
   const [tiempoGlobalUsado, setTiempoGlobalUsado] = useState(0);
   const [mostrarHistorialModal, setMostrarHistorialModal] = useState(false);
@@ -50,7 +49,6 @@ export default function Terapia() {
     cargarPacienteNombre();
   }, [pacienteId]);
 
-  // Cargar terapias
   useEffect(() => {
     (async () => {
       const snap = await getDocs(collection(db, "terapias"));
@@ -58,53 +56,31 @@ export default function Terapia() {
     })();
   }, []);
 
-  // Cargar pasos de la terapia seleccionada
   useEffect(() => {
-    if (!terapiaSeleccionadaId) return;
-    (async () => {
-      const ref = doc(db, "terapias", terapiaSeleccionadaId);
-      const snap = await getDoc(ref);
-      if (snap.exists()) {
-        setPasos(snap.data().pasos || []);
-        setPasoActualIndice(0);
-        setRegistrosSesion([]);
-        setFinalizarVisible(false);
-      }
-    })();
-  }, [terapiaSeleccionadaId]);
+    if (terapiaSeleccionadaId) {
+      const terapia = terapias.find(t => t.id === terapiaSeleccionadaId);
+      setTerapiaSeleccionada(terapia);
+      (async () => {
+        const ref = doc(db, "terapias", terapiaSeleccionadaId);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          setPasos(snap.data().pasos || []);
+          setPasoActualIndice(0);
+          setRegistrosSesion([]);
+          setFinalizarTerapiaVisible(false);
+        }
+      })();
+    } else {
+      setTerapiaSeleccionada(null);
+      setPasos([]);
+      setPasoActualIndice(0);
+      setRegistrosSesion([]);
+      setFinalizarTerapiaVisible(false);
+      setTiempoGlobalUsado(0);
+    }
+  }, [terapiaSeleccionadaId, terapias]);
 
   const currentPaso = pasos[pasoActualIndice] || {};
-
-  // Registro de ángulo manual
-  const registrarAngulo = () => {
-    const nuevo = { ...currentPaso, // incluye numero, resetZero, visibleAngles
-      anguloAlcanzado: currentPaso.anguloObjetivo == null ? null : parseFloat(anguloRegistrado),
-      tiempo: tiempoGlobal,
-      paso: pasoActualIndice + 1,
-      timestamp: Timestamp.now()
-    };
-    setRegistrosSesion(prev => [...prev.filter(r => r.paso !== nuevo.paso), nuevo]);
-    setAnguloRegistrado("");
-    setTiempoGlobal(0);
-    if (pasoActualIndice < pasos.length - 1) setPasoActualIndice(i => i + 1);
-    else setFinalizarVisible(true);
-  };
-
- 
-
- // Guardar sesión
- const finalizarTerapia = async () => {
-  if (!pacienteId || registrosSesion.length !== pasos.length) return;
-  await addDoc(collection(db, "sesionesTerapia"), {
-    pacienteId,
-    terapiaId: terapiaSeleccionadaId,
-    fechaInicio: Timestamp.now(),
-    registros: registrosSesion,
-    fechaFin: Timestamp.now()
-  });
-  router.push("/dashboard");
-};
-
 
   const handleTiempoGlobalActualizado = (timeInSeconds) => {
     setTiempoGlobalUsado(timeInSeconds);
@@ -116,13 +92,6 @@ export default function Terapia() {
 
   const handleCambiarTerapia = () => {
     setTerapiaSeleccionadaId("");
-    setPasos([]);
-    setPasoActualIndice(0);
-    setAnguloRegistrado("");
-    setRegistrosSesion([]);
-    setTerapiaNombreSeleccionada("");
-    setFinalizarTerapiaVisible(false);
-    setTiempoGlobalUsado(0);
   };
 
   const handleRegistrarAngulo = (event) => {
@@ -130,8 +99,7 @@ export default function Terapia() {
   };
 
   const handleSiguientePaso = () => {
-    const pasoActual = pasos[pasoActualIndice];
-    const anguloParaRegistrar = pasoActual?.anguloObjetivo === null ? null : parseInt(anguloRegistrado);
+    const anguloParaRegistrar = currentPaso?.anguloObjetivo === null ? null : parseInt(anguloRegistrado);
 
     const nuevoRegistro = {
       pasoIndice: pasoActualIndice,
@@ -262,12 +230,11 @@ export default function Terapia() {
 
       {/* Integración del MPU6050Monitor */}
       <div className="mt-4">
-              <MPU6050Monitor />
-            </div>
+        <MPU6050Monitor />
+      </div>
 
       <div className="container py-5" style={{ marginTop: '80px' }}>
-    
-    
+
 
         <h1>Iniciar Terapia para: {pacienteNombre}</h1>
 
@@ -291,7 +258,7 @@ export default function Terapia() {
         ) : (
           <div>
             <div className="d-flex justify-content-between align-items-center mb-3">
-              <h2>Terapia: {terapiaNombreSeleccionada}</h2>
+              <h2>Terapia: {terapiaSeleccionada?.nombre || "Cargando..."}</h2>
               <button className="btn btn-outline-secondary btn-sm" onClick={handleCambiarTerapia}>
                 Cambiar Terapia
               </button>
@@ -331,10 +298,10 @@ export default function Terapia() {
                   </div>
                 </div>
               </div>
-            ) 
-}
+            )
+            }
 
-            
+
 
             {registrosSesion.length > 0 && (
               <div className="mt-4">
@@ -393,38 +360,38 @@ export default function Terapia() {
                                 {registro.tiempoManualGlobal > 0 && ` (Tiempo global: ${registro.tiempoManualGlobal} segundos)`}
                               </li>
                             ))}</ul>
-                            </div>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-                <div className="modal-footer">
-                  <button type="button" className="btn btn-secondary" onClick={cerrarHistorialModal}>Cerrar</button>
-                </div>
-              </div>
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={cerrarHistorialModal}>Cerrar</button>
             </div>
           </div>
-    
-          {/* Renderiza el CircularTimer fuera del flujo normal del documento */}
-          <div className="floating-timer">
-            <CircularTimer onTimeUpdate={handleTiempoGlobalActualizado} />
-          </div>
-    
-          <style jsx>{`
-            .floating-timer {
-              position: fixed;
-              bottom: 20px;
-              right: 20px;
-              z-index: 1000; /* Asegura que esté por encima de otros elementos */
-            }
-            .sensor-container {
-              margin-top: 20px;
-            }
-          `}</style>
-        </>
-      );
-    }
+        </div>
+      </div>
 
-    
+      {/* Renderiza el CircularTimer fuera del flujo normal del documento */}
+      <div className="floating-timer">
+        <CircularTimer onTimeUpdate={handleTiempoGlobalActualizado} />
+      </div>
+
+      <style jsx>{`
+        .floating-timer {
+          position: fixed;
+          bottom: 20px;
+          right: 20px;
+          z-index: 1000; /* Asegura que esté por encima de otros elementos */
+        }
+        .sensor-container {
+          margin-top: 20px;
+        }
+      `}</style>
+    </>
+  );
+};
+
+export default dynamic(() => Promise.resolve(TerapiaCliente), { ssr: false });
