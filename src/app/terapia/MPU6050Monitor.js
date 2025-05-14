@@ -7,7 +7,10 @@ const MPU6050Monitor = ({ currentPaso }) => {
   const [roll, setRoll] = useState(0);
   const [pitch, setPitch] = useState(0);
   const [yaw, setYaw] = useState(0);
-  const [baseURL] = useState("http://172.20.10.9");
+  const [baseURL] = useState(
+    process.env.NEXT_PUBLIC_MPU6050_URL || "http://localhost:8000"
+  );
+  // Estado de conexión  
   const [isConnected, setIsConnected] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
 
